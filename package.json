@@ -1,0 +1,20 @@
+{
+  "name": "skazka-pro-menya",
+  "version": "1.0.0",
+  "description": "Персональные сказки на ночь",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0",
+    "dotenv": "^18.0.8",
+    "express": "^4.22.3"
+  },
+  "type": "module"
+}

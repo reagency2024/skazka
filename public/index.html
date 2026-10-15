@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Сказка про меня</title>
+  <meta name="theme-color" content="#141b3c" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+  <header class="top">
+    <a href="#/" class="logo"><span class="moon">☾</span> Сказка про меня</a>
+    <a href="#/new" class="btn small ghost" id="newBtn">+ Новая сказка</a>
+  </header>
+  <nav class="steps" id="steps" hidden>
+    <ol>
+      <li data-step="photo"><span>1</span>Фото</li>
+      <li data-step="story"><span>2</span>Придумать сказку</li>
+      <li data-step="art"><span>3</span>Рисунки</li>
+      <li data-step="voice"><span>4</span>Озвучить</li>
+      <li data-step="book"><span>5</span>Книга</li>
+    </ol>
+  </nav>
+  <main id="app"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
