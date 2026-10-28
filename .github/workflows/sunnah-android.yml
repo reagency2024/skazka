@@ -1,0 +1,52 @@
+# Сборка Android-приложения «5 весомых сунн» (APK для установки на телефон).
+# Готовый файл — в разделе Actions → запуск → Artifacts → sunnah5-android.
+# Адрес сервера синхронизации по умолчанию задаётся переменной репозитория SUNNAH_SERVER
+# (Settings → Secrets and variables → Actions → Variables).
+name: sunnah-android
+
+on:
+  push:
+    paths:
+      - "sunnah/**"
+      - ".github/workflows/sunnah-android.yml"
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sunnah
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sunnah/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Тесты
+        run: npm test
+
+      - name: Android-проект
+        env:
+          SUNNAH_SERVER: ${{ vars.SUNNAH_SERVER }}
+        run: npm run android
+
+      - name: Сборка APK
+        working-directory: sunnah/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sunnah5-android
+          path: sunnah/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

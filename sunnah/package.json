@@ -1,0 +1,25 @@
+{
+  "name": "sunnah5",
+  "version": "2.0.0",
+  "private": true,
+  "description": "5 весомых сунн — трекер сунн с месячным рейтингом, группами и напоминаниями",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "android": "cap add android && npm run android:icons && cap sync android",
+    "android:icons": "node native/android-setup.mjs",
+    "ios": "cap add ios && cap sync ios"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/local-notifications": "^8.3.1"
+  }
+}
