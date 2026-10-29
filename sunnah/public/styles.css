@@ -47,7 +47,7 @@ body {
   display: grid; gap: 18px;
 }
 h1, h2, h3 { font-family: var(--f-display); font-weight: 700; margin: 0; text-wrap: balance; line-height: 1.2; }
-h1 { font-size: 1.75rem; }
+h1 { font-size: clamp(2.4rem, 10vw, 3rem); line-height: 1.05; letter-spacing: -.01em; }
 h2 { font-size: 1.3rem; }
 h3 { font-size: 1.08rem; }
 p { margin: 0; }
