@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- «Пятёрка из клеток»: цифра 5 сложена из клеток календаря трекера.
+       Цвет клеток растёт по ходу письма цифры — от зелёного к светлому, как рейтинг месяца. -->
+  <defs>
+    <linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512">
+      <stop offset="0" stop-color="#0b1813"/>
+      <stop offset="1" stop-color="#060d0a"/>
+    </linearGradient>
+  </defs>
+  <rect id="bg" x="-256" y="-256" width="1024" height="1024" fill="url(#sky)"/>
+  <g id="art">
+    <rect x="142" y="62" width="68" height="68" rx="16" fill="#1aa44d"/>
+    <rect x="222" y="62" width="68" height="68" rx="16" fill="#188f44"/>
+    <rect x="302" y="62" width="68" height="68" rx="16" fill="#167a3a"/>
+    <rect x="142" y="142" width="68" height="68" rx="16" fill="#1bb957"/>
+    <rect x="222" y="142" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="302" y="142" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="142" y="222" width="68" height="68" rx="16" fill="#1dce60"/>
+    <rect x="222" y="222" width="68" height="68" rx="16" fill="#1fe36a"/>
+    <rect x="302" y="222" width="68" height="68" rx="16" fill="#40e981"/>
+    <rect x="142" y="302" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="222" y="302" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="302" y="302" width="68" height="68" rx="16" fill="#62ee98"/>
+    <rect x="142" y="382" width="68" height="68" rx="16" fill="#c6ffdc"/>
+    <rect x="222" y="382" width="68" height="68" rx="16" fill="#a5f9c5"/>
+    <rect x="302" y="382" width="68" height="68" rx="16" fill="#83f4ae"/>
+  </g>
+</svg>
