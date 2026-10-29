@@ -1,35 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- «Тасбих-полумесяц»: пять бусин — пять сунн, окрашены по шкале рейтинга (от чёрной к ярко-зелёной);
-       последняя светится, как утренняя звезда перед фаджром. -->
+  <!-- «Пятёрка из клеток»: цифра 5 сложена из клеток календаря трекера.
+       Цвет клеток растёт по ходу письма цифры — от зелёного к светлому, как рейтинг месяца. -->
   <defs>
-    <radialGradient id="sky" gradientUnits="userSpaceOnUse" cx="256" cy="512" r="512">
-      <stop offset="0" stop-color="#1f5f3d"/>
-      <stop offset=".5" stop-color="#0d2a1e"/>
+    <linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512">
+      <stop offset="0" stop-color="#0b1813"/>
       <stop offset="1" stop-color="#060d0a"/>
-    </radialGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f3d995"/>
-      <stop offset="1" stop-color="#b3843a"/>
     </linearGradient>
-    <radialGradient id="glow">
-      <stop offset="0" stop-color="#8dffbb" stop-opacity=".8"/>
-      <stop offset="1" stop-color="#1fe36a" stop-opacity="0"/>
-    </radialGradient>
-    <mask id="cres">
-      <rect width="512" height="512" fill="#fff"/>
-      <circle cx="300" cy="222" r="176" fill="#000"/>
-    </mask>
   </defs>
   <rect id="bg" x="-256" y="-256" width="1024" height="1024" fill="url(#sky)"/>
-  <g id="art" transform="translate(256 262) scale(.92) translate(-262 -250)">
-    <circle cx="256" cy="256" r="196" fill="url(#gold)" mask="url(#cres)"/>
-    <path d="M190.9 285.0 A126 126 0 0 0 422.3 252.5" fill="none" stroke="#e3c27a" stroke-width="5" stroke-linecap="round" opacity=".8"/>
-    <circle cx="422.3" cy="252.5" r="84" fill="url(#glow)"/>
-    <circle cx="190.9" cy="285.0" r="22" fill="#050a08" stroke="#e3c27a" stroke-width="4"/>
-    <circle cx="244.8" cy="335.2" r="25" fill="#145030"/>
-    <circle cx="317.5" cy="346.8" r="28" fill="#15963f"/>
-    <circle cx="384.3" cy="315.6" r="32" fill="#1fe36a"/>
-    <circle cx="422.3" cy="252.5" r="37" fill="#c8ffdc"/>
-    <circle cx="411.3" cy="240.5" r="9" fill="#fff" opacity=".9"/>
+  <g id="art">
+    <rect x="142" y="62" width="68" height="68" rx="16" fill="#1aa44d"/>
+    <rect x="222" y="62" width="68" height="68" rx="16" fill="#188f44"/>
+    <rect x="302" y="62" width="68" height="68" rx="16" fill="#167a3a"/>
+    <rect x="142" y="142" width="68" height="68" rx="16" fill="#1bb957"/>
+    <rect x="222" y="142" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="302" y="142" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="142" y="222" width="68" height="68" rx="16" fill="#1dce60"/>
+    <rect x="222" y="222" width="68" height="68" rx="16" fill="#1fe36a"/>
+    <rect x="302" y="222" width="68" height="68" rx="16" fill="#40e981"/>
+    <rect x="142" y="302" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="222" y="302" width="68" height="68" rx="16" fill="#102019"/>
+    <rect x="302" y="302" width="68" height="68" rx="16" fill="#62ee98"/>
+    <rect x="142" y="382" width="68" height="68" rx="16" fill="#c6ffdc"/>
+    <rect x="222" y="382" width="68" height="68" rx="16" fill="#a5f9c5"/>
+    <rect x="302" y="382" width="68" height="68" rx="16" fill="#83f4ae"/>
   </g>
 </svg>
