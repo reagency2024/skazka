@@ -12,8 +12,7 @@ if (!fs.existsSync(res)) {
 }
 
 fs.cpSync(path.join(root, "native/android-res"), res, { recursive: true });
-// Адаптивная иконка Capacitor по умолчанию перекрыла бы нашу на Android 8+.
-fs.rmSync(path.join(res, "mipmap-anydpi-v26"), { recursive: true, force: true });
+// Адаптивная иконка (фон + рисунок) заменяет иконку Capacitor через native/android-res/mipmap-anydpi-v26.
 
 const manifestPath = path.join(root, "android/app/src/main/AndroidManifest.xml");
 let manifest = fs.readFileSync(manifestPath, "utf8");
@@ -27,7 +26,7 @@ const stylesPath = path.join(res, "values/styles.xml");
 let styles = fs.readFileSync(stylesPath, "utf8");
 if (!styles.includes("windowSplashScreenBackground")) {
   styles = styles.replace('<item name="android:background">@drawable/splash</item>',
-    '<item name="android:background">@drawable/splash</item>\n        <item name="windowSplashScreenBackground">#0b1411</item>');
+    '<item name="android:background">@drawable/splash</item>\n        <item name="windowSplashScreenBackground">#060d0a</item>');
   fs.writeFileSync(stylesPath, styles);
 }
 

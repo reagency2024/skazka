@@ -1,9 +1,9 @@
 // Офлайн-режим: сначала сеть, при отсутствии сети — сохранённая копия.
 // Плюс приём push-напоминаний от сервера синхронизации.
-const CACHE = "sunnah5-v2";
+const CACHE = "sunnah5-v3";
 const FILES = [
   "./", "./index.html", "./styles.css", "./app.js", "./core.js", "./proofs.js", "./config.js",
-  "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
+  "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
 ];
 
 self.addEventListener("install", e => {
