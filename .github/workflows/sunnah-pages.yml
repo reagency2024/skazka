@@ -1,0 +1,37 @@
+# Публикация веб-версии «5 весомых сунн» на GitHub Pages (ветка gh-pages):
+# https://reagency2024.github.io/skazka/ — на iPhone открыть в Safari → «Поделиться» → «На экран „Домой“».
+name: sunnah-pages
+
+on:
+  push:
+    paths:
+      - "sunnah/public/**"
+      - ".github/workflows/sunnah-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sunnah-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Обновить ветку gh-pages
+        run: |
+          git fetch origin gh-pages
+          git worktree add pages origin/gh-pages
+          cd pages
+          git rm -rq --ignore-unmatch .
+          cp -r ../sunnah/public/. .
+          touch .nojekyll
+          git add -A
+          if git diff --cached --quiet; then echo "Без изменений"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Обновление веб-версии: ${GITHUB_SHA::7}"
+          git push origin HEAD:gh-pages
