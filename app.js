@@ -1,10 +1,12 @@
 import {
   SUNNAHS, EXCUSES, REMINDERS, keyOf, monthKey, parseKey, startOfDay, isFastDay,
   emptyData, dayStats, monthStats, level, mergeData, cleanReminders, defaultReminders,
+  debtInfo, debtSummary,
 } from "./core.js";
-import { PROOFS } from "./proofs.js";
+import { PROOFS, DEBT_PROOFS, WILL_PROOFS } from "./proofs.js";
 
 /* ---------- Хранилище ---------- */
+// Ключи хранилища остались от версии «5 сунн», чтобы отметки сохранились после обновления.
 const DATA_KEY = "sunnah5.v1";
 const SETTINGS_KEY = "sunnah5.settings";
 
@@ -18,8 +20,8 @@ function writeJSON(key, val) {
 // Записи первой версии не имели метки времени; t = 1 — «старше любой новой правки».
 function loadData() {
   const raw = readJSON(DATA_KEY) || {};
-  const data = mergeData(emptyData(), { days: raw.days || {}, money: raw.money || {} });
-  for (const part of ["days", "money"]) for (const rec of Object.values(data[part])) if (!rec.t) rec.t = 1;
+  const data = mergeData(emptyData(), raw);
+  for (const part of ["days", "money", "debts"]) for (const rec of Object.values(data[part])) if (!rec.t) rec.t = 1;
   return data;
 }
 
@@ -87,10 +89,14 @@ function renderToday() {
   const rec = dayRec(d);
   const fast = isFastDay(d);
   $("list").innerHTML = SUNNAHS.map((s, i) => {
-    const off = s.id === "fast" && !fast;
+    const notYet = s.since && keyOf(d) < s.since;
+    const off = notYet || (s.id === "fast" && !fast);
     const on = !off && !!rec[s.id];
     let sub = s.sub;
-    if (off) {
+    if (notYet) {
+      const n = parseKey(s.since);
+      sub = `в трекере с ${n.getDate()} ${MONTHS_GEN[n.getMonth()]} ${n.getFullYear()}`;
+    } else if (off) {
       const n = nextFastDay(d);
       sub = `не день поста · следующий: ${WEEKDAYS[n.getDay()]}, ${n.getDate()} ${MONTHS_GEN[n.getMonth()]}`;
     }
@@ -290,7 +296,7 @@ async function sync() {
   if (!settings.token || !serverBase() || syncing) return;
   syncing = true;
   try {
-    const r = await api("/api/sync", { method: "POST", body: { days: data.days, money: data.money, tz: TZ } });
+    const r = await api("/api/sync", { method: "POST", body: { days: data.days, money: data.money, debts: data.debts, will: data.will, tz: TZ } });
     data = mergeData(data, r);
     writeJSON(DATA_KEY, data);
     settings.lastSync = Date.now();
@@ -591,7 +597,7 @@ function buildICS() {
   const p = n => String(n).padStart(2, "0");
   const icsEsc = s => s.replace(/\\/g, "\\\\").replace(/[,;]/g, m => "\\" + m).replace(/\n/g, "\\n");
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//5 sunnah//RU", "CALSCALE:GREGORIAN"];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//7 sunnah//RU", "CALSCALE:GREGORIAN"];
   for (const r of REMINDERS) {
     const v = settings.reminders[r.id];
     if (!v.on) continue;
@@ -613,11 +619,339 @@ $("saveReminders").onclick = () => enableReminders(false);
 $("icsReminders").onclick = () => {
   if (!anyReminderOn()) { $("remindStatus").textContent = "Отметьте хотя бы одно напоминание."; return; }
   const url = URL.createObjectURL(new Blob([buildICS()], { type: "text/calendar;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: "5-sunnah-napominaniya.ics" });
+  const a = Object.assign(document.createElement("a"), { href: url, download: "7-sunnah-napominaniya.ics" });
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   $("remindStatus").textContent = "Откройте скачанный файл — телефон предложит добавить события в календарь.";
 };
+
+/* ---------- Общие помощники ---------- */
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100, b = a % 10;
+  return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many;
+};
+const days = n => `${n} ${plural(n, "день", "дня", "дней")}`;
+const fmtMoney = (n, cur) => `${(+n || 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}${cur ? ` ${cur}` : ""}`;
+const fmtDate = k => { if (!k) return ""; const d = parseKey(k); return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}`; };
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+function evidenceHTML(list) {
+  return list.map(e => `<div class="ev"><span class="kind">${e.kind}</span>
+    ${e.ar ? `<p class="ar" lang="ar">${e.ar}</p>` : ""}
+    <p class="tr">${e.tr}</p><span class="src">${e.src}</span>
+    ${e.cm ? `<p class="cm">${e.cm}</p>` : ""}</div>`).join("");
+}
+
+/* ---------- Мои долги ---------- */
+let debtFilter = "active";
+let editingDebt = null;
+let formKind = "owe";
+const DEBT_FILTERS = [["active", "Открытые"], ["owe", "Я должен"], ["lent", "Мне должны"], ["closed", "Закрытые"]];
+
+const liveDebts = () => Object.entries(data.debts).filter(([, d]) => d && !d.deleted).map(([id, d]) => ({ id, ...d }));
+
+function statusText(d, i) {
+  if (i.status === "ontime") return d.due ? `Возвращён в срок · ${fmtDate(i.closedOn)}` : `Возвращён · ${fmtDate(i.closedOn)}`;
+  if (i.status === "late") return `Возвращён с опозданием на ${days(i.late)}`;
+  if (i.status === "overdue") return `Просрочен на ${days(i.late)}`;
+  if (i.status === "soon") return i.soon === 0 ? "Срок — сегодня" : `До срока ${days(i.soon)}`;
+  return d.due ? `До срока ${days(Math.round((parseKey(d.due) - today()) / 864e5))}` : "Без срока";
+}
+
+function renderDebts() {
+  const t = today();
+  const sum = debtSummary(data.debts, t);
+  const totals = obj => Object.entries(obj).filter(([, v]) => v > 0).map(([c, v]) => fmtMoney(v, c)).join(" + ") || "0";
+  const tl = sum.timeliness;
+  $("debtSummary").innerHTML = `<div class="kpis">
+      <div class="kpi"><span class="label">Я должен</span><b>${esc(totals(sum.owe))}</b></div>
+      <div class="kpi"><span class="label">Мне должны</span><b>${esc(totals(sum.lent))}</b></div>
+      <div class="kpi"><span class="label">Мои просрочки</span><b>${sum.overdue}</b></div>
+      <div class="kpi"><span class="label">Возвращаю вовремя</span>
+        <span><span class="pill num lv${level(tl)}">${tl === null ? "—" : `${Math.round(tl)}%`}</span></span>
+        <span class="note muted">${sum.closedWithDue ? `${sum.onTime} из ${sum.closedWithDue} долгов в срок` : "оценка появится после первого возврата"}</span></div>
+    </div>`;
+
+  $("debtFilter").innerHTML = DEBT_FILTERS.map(([id, title]) =>
+    `<button class="chip" role="radio" data-filter="${id}" aria-checked="${debtFilter === id}">${title}</button>`).join("");
+
+  const list = liveDebts().map(d => ({ d, i: debtInfo(d, t) })).filter(({ d, i }) =>
+    debtFilter === "closed" ? i.closed : !i.closed && (debtFilter === "active" || d.kind === debtFilter));
+  list.sort((a, b) => a.i.closed
+    ? b.i.closedOn.localeCompare(a.i.closedOn)
+    : (a.d.due || "9999").localeCompare(b.d.due || "9999"));
+
+  if (!list.length) {
+    $("debtList").innerHTML = `<div class="panel"><p class="note muted">${debtFilter === "closed"
+      ? "Закрытых долгов пока нет."
+      : liveDebts().length ? "В этом списке ничего нет." : "Долгов пока нет. Нажмите «Добавить долг», чтобы записать первый."}</p></div>`;
+  } else {
+    $("debtList").innerHTML = list.map(({ d, i }) => {
+      const meta = [d.taken && `взят ${fmtDate(d.taken)}`, d.due && `вернуть до ${fmtDate(d.due)}`, d.witness && `свидетель: ${esc(d.witness)}`].filter(Boolean).join(" · ");
+      const pct = d.amount ? Math.min(100, (i.paid / d.amount) * 100) : 0;
+      return `<div class="panel debt${i.closed ? " closed" : ""}" data-id="${d.id}">
+        <div class="head">
+          <div class="who"><span class="label">${d.kind === "lent" ? "Мне должен" : "Я должен"}</span>
+            <strong>${esc(d.person)}</strong>${meta ? `<span class="note muted">${meta}</span>` : ""}</div>
+          <div class="sum"><b>${esc(fmtMoney(i.closed ? d.amount : i.left, d.currency))}</b>
+            <div class="note muted">${i.closed ? "возвращено полностью" : i.paid ? `осталось из ${esc(fmtMoney(d.amount, d.currency))}` : "осталось"}</div></div>
+        </div>
+        <div><span class="status st-${i.status}">${statusText(d, i)}</span></div>
+        ${i.paid ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}
+        ${d.note ? `<p class="note">${esc(d.note)}</p>` : ""}
+        ${d.payments.length ? `<details><summary>Возвраты (${d.payments.length})</summary><div class="payments">${d.payments.map((p, k) =>
+          `<div><span>${fmtDate(p.date)}</span><span class="num">${esc(fmtMoney(p.amount, d.currency))}
+            <button class="linkbtn" data-unpay="${k}" aria-label="Удалить возврат">✕</button></span></div>`).join("")}</div></details>` : ""}
+        ${i.closed ? "" : `<div class="pay">
+          <input type="number" min="0" step="any" inputmode="decimal" value="${i.left}" data-pay-amount aria-label="Сумма возврата">
+          <input type="date" value="${keyOf(t)}" data-pay-date aria-label="Дата возврата">
+          <button class="btn" data-act="pay">${d.kind === "lent" ? "Мне вернули" : "Я вернул"}</button></div>`}
+        <div class="btns"><button class="linkbtn" data-act="edit">Изменить</button></div>
+      </div>`;
+    }).join("");
+  }
+  if (!$("debtProofs").children.length) $("debtProofs").innerHTML = evidenceHTML(DEBT_PROOFS);
+}
+
+function setFormKind(kind) {
+  formKind = kind;
+  document.querySelectorAll("#debtForm [data-kind]").forEach(b => b.setAttribute("aria-checked", b.dataset.kind === kind));
+  $("dPersonLabel").textContent = kind === "lent" ? "Кто мне должен" : "Кому я должен";
+}
+
+function openDebtForm(id) {
+  editingDebt = id || null;
+  const d = id ? data.debts[id] : null;
+  $("debtFormTitle").textContent = d ? "Изменить долг" : "Новый долг";
+  setFormKind(d ? d.kind : "owe");
+  $("dPerson").value = d ? d.person : "";
+  $("dAmount").value = d ? d.amount : "";
+  $("dCurrency").value = d ? d.currency : (settings.currency || "");
+  $("dTaken").value = d ? d.taken : keyOf(today());
+  $("dDue").value = d ? d.due : "";
+  $("dWitness").value = d ? d.witness : "";
+  $("dNote").value = d ? d.note : "";
+  $("debtDelete").hidden = !d;
+  $("debtDeleteConfirm").hidden = true;
+  $("debtForm").hidden = false;
+  $("dPerson").focus();
+  $("debtForm").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+const closeDebtForm = () => { $("debtForm").hidden = true; editingDebt = null; };
+
+$("addDebt").onclick = () => openDebtForm(null);
+$("debtCancel").onclick = closeDebtForm;
+$("debtForm").addEventListener("click", e => {
+  const k = e.target.closest("[data-kind]"); if (k) setFormKind(k.dataset.kind);
+});
+$("debtForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const amount = parseFloat($("dAmount").value);
+  const person = $("dPerson").value.trim();
+  if (!person || !(amount > 0)) { toast("Укажите, с кем долг, и сумму больше нуля"); return; }
+  const old = editingDebt ? data.debts[editingDebt] : null;
+  const id = editingDebt || newId();
+  data.debts[id] = {
+    t: Date.now(), kind: formKind, person, amount, currency: $("dCurrency").value.trim(),
+    taken: $("dTaken").value, due: $("dDue").value, witness: $("dWitness").value.trim(), note: $("dNote").value.trim(),
+    payments: old ? old.payments : [],
+  };
+  settings.currency = $("dCurrency").value.trim(); saveSettings();
+  save(); closeDebtForm(); renderDebts(); toast(old ? "Долг изменён" : "Долг записан");
+});
+$("debtDelete").onclick = () => { $("debtDeleteConfirm").hidden = false; };
+$("debtDeleteNo").onclick = () => { $("debtDeleteConfirm").hidden = true; };
+$("debtDeleteYes").onclick = () => {
+  data.debts[editingDebt] = { t: Date.now(), deleted: true };
+  save(); closeDebtForm(); renderDebts(); toast("Долг удалён");
+};
+$("debtFilter").addEventListener("click", e => {
+  const c = e.target.closest("[data-filter]"); if (!c) return;
+  debtFilter = c.dataset.filter; renderDebts();
+});
+$("debtList").addEventListener("click", e => {
+  const card = e.target.closest("[data-id]"); if (!card) return;
+  const id = card.dataset.id, d = data.debts[id];
+  const un = e.target.closest("[data-unpay]");
+  if (un) {
+    d.payments.splice(+un.dataset.unpay, 1); d.t = Date.now();
+    save(); renderDebts(); toast("Возврат удалён"); return;
+  }
+  const act = e.target.closest("[data-act]"); if (!act) return;
+  if (act.dataset.act === "edit") openDebtForm(id);
+  if (act.dataset.act === "pay") {
+    const left = debtInfo(d, today()).left;
+    const amount = Math.min(parseFloat(card.querySelector("[data-pay-amount]").value), left);
+    const date = card.querySelector("[data-pay-date]").value || keyOf(today());
+    if (!(amount > 0)) { toast("Укажите сумму возврата"); return; }
+    d.payments.push({ date, amount }); d.t = Date.now();
+    save(); renderDebts();
+    toast(amount >= left ? "Долг закрыт. Пусть Аллах благословит!" : `Записан возврат ${fmtMoney(amount, d.currency)}`);
+  }
+});
+
+/* ---------- Завещание ---------- */
+const WILL_DEFAULTS = {
+  intro: "Я свидетельствую, что нет божества, достойного поклонения, кроме Аллаха, Единственного, у Которого нет сотоварища, и что Мухаммад — Его раб и посланник. Я свидетельствую, что Рай — истина, Огонь — истина, что Час непременно наступит, в чём нет сомнения, и что Аллах воскресит тех, кто в могилах.",
+  advice: "Завещаю своей семье и близким бояться Аллаха, держаться намаза, поддерживать родственные связи, примирять друг друга и повиноваться Аллаху и Его Посланнику ﷺ. Не умирайте иначе, как мусульманами (2:132).",
+  funeral: "Прошу как можно скорее омыть меня, завернуть в саван и похоронить по Сунне на мусульманском кладбище, совершив джаназа-намаз. Прошу не устраивать обычаев, которых нет в Сунне, громкого оплакивания и лишних трат.",
+};
+
+const WILL_SECTIONS = [
+  { title: "Обо мне", fields: [["name", "Фамилия, имя, отчество"], ["birth", "Дата рождения", "date"], ["city", "Место жительства"]] },
+  { title: "Свидетельство веры", hint: "Вступление по образцу завещаний сподвижников. Можно изменить.", fields: [["intro", "", "area"]] },
+  { title: "Наставление близким", hint: "Главное завещание пророков — о вере (2:132).", fields: [["advice", "", "area"]] },
+  { title: "Долги", hint: "Подставляются из раздела «Мои долги». Долги возвращаются раньше исполнения завещания и раздела наследства (4:11).", special: "debts" },
+  { title: "Аманаты", hint: "Чужие вещи и деньги у меня на хранении: что, чьё, где лежит.", fields: [["amanat", "", "area short"]] },
+  { title: "Невыполненные обязанности", hint: "Закят, каффары, пропущенные посты, обеты, хадж — если есть.", fields: [["obligations", "", "area short"]] },
+  { title: "Завещание до ⅓ имущества (васыя)", hint: "Кому, кроме наследников, и на какие благие дела. Не больше трети.", special: "bequests" },
+  { title: "Наследники", hint: "Их доли определены Кораном (4:11–12, 4:176). Перечислите их, чтобы исполнителю было проще.", special: "heirs" },
+  { title: "Похороны", fields: [["funeral", "", "area"]] },
+  { title: "Исполнитель завещания", fields: [["executor", "Кто исполнит"], ["executorContact", "Телефон или адрес"]] },
+  { title: "Свидетели", hint: "Двое надёжных мусульман (5:106).", fields: [["witness1", "Первый свидетель"], ["witness2", "Второй свидетель"]] },
+  { title: "Другое", fields: [["other", "", "area short"]] },
+];
+
+let will = null;
+let willTimer = null;
+
+function currentWill() {
+  if (data.will) return JSON.parse(JSON.stringify(data.will));
+  return { name: settings.name || "", birth: "", city: "", amanat: "", obligations: "", executor: "", executorContact: "",
+    witness1: "", witness2: "", other: "", ...WILL_DEFAULTS, bequests: [], heirs: [] };
+}
+
+function willDebtLines() {
+  const t = today();
+  const open = liveDebts().map(d => ({ d, i: debtInfo(d, t) })).filter(x => !x.i.closed);
+  const line = ({ d, i }) => `— ${d.person}: ${fmtMoney(i.left, d.currency)}${d.due ? ` (срок — ${fmtDate(d.due)})` : ""}${d.witness ? `, свидетель: ${d.witness}` : ""}`;
+  return { owe: open.filter(x => x.d.kind === "owe").map(line), lent: open.filter(x => x.d.kind === "lent").map(line) };
+}
+
+function bequestWarnings(w) {
+  const out = [];
+  const pct = w.bequests.filter(b => b.unit === "%").reduce((s, b) => s + (b.share || 0), 0);
+  if (pct > 100 / 3 + 0.01) out.push(`Завещано ${Math.round(pct * 10) / 10}% — больше трети. По шариату сверх трети исполняется только с согласия наследников (аль-Бухари, 2742).`);
+  const heirs = new Set(w.heirs.map(h => h.name.trim().toLowerCase()).filter(Boolean));
+  for (const b of w.bequests) if (b.to.trim() && heirs.has(b.to.trim().toLowerCase())) out.push(`«${b.to}» указан(а) среди наследников, а «нет завещания наследнику» (Абу Дауд, 2870).`);
+  return out;
+}
+
+function willRowsHTML(kind, w) {
+  if (kind === "bequests") {
+    return `<div class="rows">${w.bequests.map((b, i) => `<div class="wrow beq" data-row="${i}">
+        <label>Кому<input type="text" data-list="bequests" data-k="to" value="${esc(b.to)}" maxlength="120"></label>
+        <label>Доля<input type="number" min="0" step="any" data-list="bequests" data-k="share" value="${b.share ?? ""}"></label>
+        <label>В чём<select data-list="bequests" data-k="unit"><option value="%"${b.unit === "%" ? " selected" : ""}>%</option><option value="sum"${b.unit === "sum" ? " selected" : ""}>сумма</option></select></label>
+        <button type="button" class="iconbtn sm" data-del="bequests" aria-label="Удалить строку">✕</button>
+        <label class="purpose">На что (необязательно)<input type="text" data-list="bequests" data-k="purpose" value="${esc(b.purpose)}" maxlength="300" placeholder="например, на строительство мечети"></label>
+      </div>`).join("")}</div>
+      <div id="willWarn" class="stack-sm"></div>
+      <div class="btns"><button type="button" class="btn" data-add="bequests">Добавить получателя</button></div>`;
+  }
+  if (kind === "heirs") {
+    return `<div class="rows">${w.heirs.map((h, i) => `<div class="wrow" data-row="${i}">
+        <label>Имя<input type="text" data-list="heirs" data-k="name" value="${esc(h.name)}" maxlength="120"></label>
+        <label>Кем приходится<input type="text" data-list="heirs" data-k="relation" value="${esc(h.relation)}" maxlength="60" placeholder="жена, сын, мать…"></label>
+        <button type="button" class="iconbtn sm" data-del="heirs" aria-label="Удалить строку">✕</button>
+      </div>`).join("")}</div>
+      <div class="btns"><button type="button" class="btn" data-add="heirs">Добавить наследника</button></div>`;
+  }
+  const { owe, lent } = willDebtLines();
+  return `<p class="note">${owe.length ? `Я должен:<br>${owe.map(esc).join("<br>")}` : "Открытых долгов, которые должен я, в разделе «Мои долги» нет."}</p>
+    ${lent.length ? `<p class="note">Мне должны:<br>${lent.map(esc).join("<br>")}</p>` : ""}
+    <div class="btns"><a class="btn" href="#debts">Открыть «Мои долги»</a></div>`;
+}
+
+function renderWill() {
+  will = currentWill();
+  $("willForm").innerHTML = WILL_SECTIONS.map((sec, n) => `<div class="panel">
+      <h3>${n + 1}. ${sec.title}</h3>${sec.hint ? `<p class="note muted">${sec.hint}</p>` : ""}
+      ${sec.special ? `<div data-special="${sec.special}">${willRowsHTML(sec.special, will)}</div>` : `<div class="fields">${sec.fields.map(([f, label, type = "text"]) =>
+        type.startsWith("area")
+          ? `<label for="w-${f}" class="wide">${label}<textarea id="w-${f}" data-f="${f}" class="${type.includes("short") ? "short" : ""}" aria-label="${label || sec.title}">${esc(will[f])}</textarea></label>`
+          : `<label for="w-${f}"${f === "name" || f === "executor" ? ' class="wide"' : ""}>${label}<input type="${type}" id="w-${f}" data-f="${f}" value="${esc(will[f])}"></label>`).join("")}</div>`}
+    </div>`).join("");
+  if (!$("willProofs").children.length) $("willProofs").innerHTML = evidenceHTML(WILL_PROOFS);
+  updateWillDoc();
+}
+
+function updateWillDoc() {
+  $("willDoc").textContent = buildWillText(will);
+  const warn = $("willWarn");
+  if (warn) warn.innerHTML = bequestWarnings(will).map(t => `<p class="warnbox">${esc(t)}</p>`).join("");
+  $("willSaved").textContent = data.will && data.will.t > 1
+    ? `сохранено ${new Date(data.will.t).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`
+    : "черновик — начните заполнять";
+}
+
+function buildWillText(w) {
+  const L = [];
+  let n = 0;
+  const section = (title, body) => { if (body && body.trim()) { n++; L.push("", `${n}. ${title}`, body.trim()); } };
+  L.push("ЗАВЕЩАНИЕ (ВАСЫЯ)", "", "Бисмилляхи-р-Рахмани-р-Рахим.", "");
+  const who = [w.name.trim() || "______________________", w.birth && `${fmtDate(w.birth)} года рождения`, w.city.trim() && `проживающий(ая): ${w.city.trim()}`].filter(Boolean).join(", ");
+  L.push(`Я, ${who}, находясь в здравом уме и твёрдой памяти, по своей воле составляю это завещание.`);
+  if (w.intro.trim()) L.push("", w.intro.trim());
+  section("Наставление близким", w.advice);
+  const { owe, lent } = willDebtLines();
+  section("Долги", [
+    owe.length ? `Прошу прежде всего, до раздела наследства, вернуть из моего имущества мои долги:\n${owe.join("\n")}` : `На ${fmtDate(keyOf(today()))} записанных долгов у меня нет.`,
+    lent.length ? `Мне должны:\n${lent.join("\n")}` : "",
+  ].filter(Boolean).join("\n\n"));
+  section("Аманаты (чужое имущество у меня на хранении)", w.amanat);
+  section("Невыполненные обязанности", w.obligations);
+  const beq = w.bequests.filter(b => b.to.trim()).map(b =>
+    `— ${b.to.trim()}${b.share ? `: ${b.unit === "%" ? `${b.share}% имущества` : fmtMoney(b.share, settings.currency || "")}` : ""}${b.purpose.trim() ? ` — ${b.purpose.trim()}` : ""}`);
+  section("Завещание (не более трети имущества)", beq.length ? `Из трети моего имущества завещаю:\n${beq.join("\n")}` : "");
+  const heirs = w.heirs.filter(h => h.name.trim()).map(h => `— ${h.name.trim()}${h.relation.trim() ? ` (${h.relation.trim()})` : ""}`);
+  section("Наследство", "Остальное имущество после расходов на похороны, возврата долгов и исполнения завещания прошу разделить между наследниками по шариату, согласно суре «ан-Ниса» (4:11–12, 4:176)." +
+    (heirs.length ? `\nМои наследники:\n${heirs.join("\n")}` : ""));
+  section("Похороны", w.funeral);
+  section("Исполнитель завещания", [w.executor.trim(), w.executorContact.trim()].filter(Boolean).join(", "));
+  section("Другое", w.other);
+  L.push("", `Дата: ${fmtDate(keyOf(today()))}`, "Подпись: ____________________", "", "Свидетели:",
+    `1. ${w.witness1.trim() || "______________________"}   подпись: ____________`,
+    `2. ${w.witness2.trim() || "______________________"}   подпись: ____________`);
+  return L.join("\n");
+}
+
+function saveWillSoon() {
+  updateWillDoc();
+  clearTimeout(willTimer);
+  willTimer = setTimeout(() => {
+    data.will = { ...JSON.parse(JSON.stringify(will)), t: Date.now() };
+    save(); updateWillDoc();
+  }, 500);
+}
+
+$("willForm").addEventListener("input", e => {
+  const el = e.target;
+  if (el.dataset.f) will[el.dataset.f] = el.value;
+  else if (el.dataset.list) {
+    const row = will[el.dataset.list][+el.closest("[data-row]").dataset.row];
+    row[el.dataset.k] = el.dataset.k === "share" ? (el.value === "" ? null : +el.value) : el.value;
+  } else return;
+  saveWillSoon();
+});
+$("willForm").addEventListener("click", e => {
+  const add = e.target.closest("[data-add]"), del = e.target.closest("[data-del]");
+  if (!add && !del) return;
+  const list = (add || del).dataset.add || (add || del).dataset.del;
+  if (add) will[list].push(list === "bequests" ? { to: "", share: null, unit: "%", purpose: "" } : { name: "", relation: "" });
+  else will[list].splice(+del.closest("[data-row]").dataset.row, 1);
+  $("willForm").querySelector(`[data-special="${list}"]`).innerHTML = willRowsHTML(list, will);
+  saveWillSoon();
+  if (add) { const rows = $("willForm").querySelectorAll(`[data-special="${list}"] [data-row]`); rows[rows.length - 1].querySelector("input").focus(); }
+});
+$("willCopy").onclick = () => copyText($("willDoc").textContent, "Текст завещания скопирован");
+$("willDownload").onclick = () => {
+  const url = URL.createObjectURL(new Blob([$("willDoc").textContent], { type: "text/plain;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: "zaveshchanie.txt" });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+};
+$("willPrint").onclick = () => window.print();
 
 /* ---------- Резервная копия ---------- */
 function copyText(text, msg) {
@@ -631,20 +965,25 @@ $("restoreBackup").onclick = () => {
     if (!parsed || typeof parsed.days !== "object") throw new Error();
     // Восстановленные записи считаются свежими правками, чтобы попасть на сервер.
     const now = Date.now();
-    const fresh = mergeData(emptyData(), { days: parsed.days || {}, money: parsed.money || {} });
-    for (const part of ["days", "money"]) for (const rec of Object.values(fresh[part])) rec.t = now;
+    const fresh = mergeData(emptyData(), parsed);
+    for (const part of ["days", "money", "debts"]) for (const rec of Object.values(fresh[part])) rec.t = now;
+    if (fresh.will) fresh.will.t = now;
     data = mergeData(data, fresh);
     save(); toast("Данные восстановлены");
   } catch (e) { toast("Не получилось: вставьте текст резервной копии целиком"); }
 };
 
 /* ---------- Навигация ---------- */
-const VIEWS = ["today", "month", "groups", "proofs", "more"];
+const VIEWS = ["today", "month", "debts", "will", "groups", "proofs", "more"];
+// Разделы без своей вкладки подсвечивают вкладку «Ещё».
+const TAB_OF = { groups: "more", proofs: "more" };
 let pendingJump = null;
 
 function rerender() {
   if (currentView === "today") renderToday();
   if (currentView === "month") renderMonth();
+  if (currentView === "debts") renderDebts();
+  if (currentView === "will" && !document.activeElement.closest("#willForm")) renderWill();
 }
 
 function route() {
@@ -652,9 +991,11 @@ function route() {
   const v = VIEWS.includes(h) ? h : "today";
   currentView = v;
   for (const name of VIEWS) $(`view-${name}`).hidden = name !== v;
-  document.querySelectorAll(".tabs a").forEach(a => a.setAttribute("aria-current", a.dataset.tab === v ? "page" : "false"));
+  document.querySelectorAll(".tabs a").forEach(a => a.setAttribute("aria-current", a.dataset.tab === (TAB_OF[v] || v) ? "page" : "false"));
   if (v === "today") renderToday();
   if (v === "month") renderMonth();
+  if (v === "debts") renderDebts();
+  if (v === "will") renderWill();
   if (v === "groups") renderGroups();
   if (v === "more") { renderReminders(); renderAccount(); $("backup").value = JSON.stringify(data); }
   if (v === "proofs" && pendingJump) {

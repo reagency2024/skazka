@@ -1,6 +1,6 @@
 // Офлайн-режим: сначала сеть, при отсутствии сети — сохранённая копия.
 // Плюс приём push-напоминаний от сервера синхронизации.
-const CACHE = "sunnah5-v3";
+const CACHE = "sunnah7-v4";
 const FILES = [
   "./", "./index.html", "./styles.css", "./app.js", "./core.js", "./proofs.js", "./config.js",
   "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
@@ -38,7 +38,7 @@ self.addEventListener("fetch", e => {
 self.addEventListener("push", e => {
   let msg = {};
   try { msg = e.data ? e.data.json() : {}; } catch (err) { msg = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(msg.title || "5 весомых сунн", {
+  e.waitUntil(self.registration.showNotification(msg.title || "7 весомых сунн", {
     body: msg.body || "",
     icon: "icon-192.png",
     badge: "icon-192.png",
