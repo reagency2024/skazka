@@ -1049,6 +1049,13 @@ document.addEventListener("visibilitychange", () => {
   sync();
 });
 
+/* ---------- Переезд со старого адреса ---------- */
+// Старая веб-версия жила в репозитории skazka; там показываем, как перенести данные.
+if (location.hostname === "reagency2024.github.io" && location.pathname.startsWith("/skazka")) {
+  $("moved").hidden = false;
+  $("movedCopy").onclick = () => copyText(JSON.stringify(data), "Данные скопированы — вставьте их в новом приложении");
+}
+
 /* ---------- Запуск ---------- */
 $("hijri").textContent = hijri(today());
 renderProofs();
