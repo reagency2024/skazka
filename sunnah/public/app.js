@@ -104,7 +104,7 @@ function renderToday() {
       <button class="check" data-id="${s.id}" aria-pressed="${on}" ${off ? "disabled" : ""} aria-label="${s.title}">${CHECK_SVG}</button>
       <div class="body">
         <div class="row"><strong class="title">${i + 1}. ${s.title}</strong>
-          <button class="linkbtn" data-proof="${s.id}">Доказательства</button></div>
+          <button class="linkbtn" data-proof="${s.id}">Доводы</button></div>
         <span class="muted note">${sub}</span>
       </div></div>`;
   }).join("");
@@ -232,7 +232,7 @@ function saveMoney() {
   renderSadaqa();
 }
 
-/* ---------- Доказательства ---------- */
+/* ---------- Доводы ---------- */
 function renderProofs() {
   $("toc").innerHTML = SUNNAHS.map((s, i) => `<a href="#proofs" data-jump="${s.id}">${i + 1}. ${s.title}</a>`).join("");
   $("proofs").innerHTML = SUNNAHS.map((s, i) => {
