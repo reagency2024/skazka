@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>5 весомых сунн</title>
+<title>7 весомых сунн</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Ежедневный трекер пяти сунн с месячным рейтингом и доказательствами из Корана и хадисов">
+<meta name="description" content="Ежедневный трекер семи сунн с месячным рейтингом и доказательствами из Корана и хадисов">
 <meta name="theme-color" content="#0b1411">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -20,7 +20,7 @@
   <header class="top">
     <div>
       <div class="label">Трекер</div>
-      <h1>5 весомых сунн</h1>
+      <h1>7 весомых сунн</h1>
     </div>
     <div class="hijri num" id="hijri"></div>
   </header>
@@ -83,6 +83,70 @@
     </div>
   </section>
 
+  <!-- МОИ ДОЛГИ -->
+  <section id="view-debts" class="view" hidden>
+    <div class="stack-sm">
+      <h2>Мои долги</h2>
+      <p class="muted">Записывайте долги со сроком и свидетелем, как велит аят о долге (2:282), и отмечайте каждый возврат.</p>
+    </div>
+    <div class="panel" id="debtSummary"></div>
+    <div class="spread">
+      <div class="chips" id="debtFilter" role="radiogroup" aria-label="Какие долги показать"></div>
+      <button class="btn primary" id="addDebt">Добавить долг</button>
+    </div>
+    <form class="panel" id="debtForm" hidden>
+      <h3 id="debtFormTitle">Новый долг</h3>
+      <div class="chips" role="radiogroup" aria-label="Вид долга">
+        <button type="button" class="chip" role="radio" data-kind="owe" aria-checked="true">Я должен</button>
+        <button type="button" class="chip" role="radio" data-kind="lent" aria-checked="false">Мне должны</button>
+      </div>
+      <div class="fields">
+        <label for="dPerson" class="wide"><span id="dPersonLabel">Кому я должен</span><input type="text" id="dPerson" maxlength="80" required></label>
+        <label for="dAmount">Сумма<input type="number" id="dAmount" min="0" step="any" inputmode="decimal" required></label>
+        <label for="dCurrency">Валюта<input type="text" id="dCurrency" maxlength="12" placeholder="например, сум, ₽, $"></label>
+        <label for="dTaken">Дата займа<input type="date" id="dTaken"></label>
+        <label for="dDue">Вернуть до<input type="date" id="dDue"></label>
+        <label for="dWitness" class="wide">Свидетель<input type="text" id="dWitness" maxlength="120" placeholder="кто присутствовал при займе"></label>
+        <label for="dNote" class="wide">Заметка<input type="text" id="dNote" maxlength="500"></label>
+      </div>
+      <div class="btns">
+        <button class="btn primary" type="submit">Сохранить</button>
+        <button class="btn" type="button" id="debtCancel">Отмена</button>
+        <button class="btn danger" type="button" id="debtDelete" hidden>Удалить</button>
+      </div>
+      <div class="confirm" id="debtDeleteConfirm" hidden>Удалить этот долг со всеми возвратами?
+        <button class="btn danger" type="button" id="debtDeleteYes">Удалить</button><button class="btn" type="button" id="debtDeleteNo">Отмена</button></div>
+    </form>
+    <div id="debtList" class="stack"></div>
+    <details class="panel">
+      <summary>Доводы о долге из Корана и Сунны</summary>
+      <div class="stack" id="debtProofs"></div>
+    </details>
+  </section>
+
+  <!-- ЗАВЕЩАНИЕ -->
+  <section id="view-will" class="view" hidden>
+    <div class="stack-sm">
+      <h2>Завещание</h2>
+      <p class="muted">Заполните разделы — внизу соберётся готовый текст васыи. Всё сохраняется само по мере ввода.</p>
+    </div>
+    <form id="willForm" class="stack" autocomplete="off"></form>
+    <div class="panel">
+      <div class="spread"><h3>Готовый текст</h3><span class="muted note" id="willSaved"></span></div>
+      <div class="will-doc" id="willDoc"></div>
+      <div class="btns">
+        <button class="btn primary" id="willCopy">Скопировать текст</button>
+        <button class="btn" id="willDownload">Сохранить файлом</button>
+        <button class="btn" id="willPrint">Печать или PDF</button>
+      </div>
+      <p class="note muted">Чтобы завещание имело силу по закону вашей страны, его, как правило, нужно заверить у нотариуса. Доли наследников уточните у знающего имама: приложение их не рассчитывает.</p>
+    </div>
+    <details class="panel">
+      <summary>Доводы о завещании из Корана и Сунны</summary>
+      <div class="stack" id="willProofs"></div>
+    </details>
+  </section>
+
   <!-- ГРУППЫ -->
   <section id="view-groups" class="view" hidden>
     <div class="stack-sm">
@@ -109,7 +173,7 @@
   <section id="view-proofs" class="view" hidden>
     <div class="stack-sm">
       <h2>Доказательства</h2>
-      <p class="muted">Аяты Корана и хадисы о достоинстве каждой из пяти сунн.</p>
+      <p class="muted">Аяты Корана и хадисы о достоинстве каждой из семи сунн.</p>
       <nav class="toc" id="toc"></nav>
     </div>
     <div id="proofs" class="stack-lg"></div>
@@ -118,7 +182,11 @@
 
   <!-- НАСТРОЙКИ -->
   <section id="view-more" class="view" hidden>
-    <h2>Настройки</h2>
+    <h2>Ещё</h2>
+    <nav class="menu">
+      <a href="#proofs"><strong>Доказательства</strong><span class="muted note">Аяты и хадисы о каждой из семи сунн</span></a>
+      <a href="#groups"><strong>Группы</strong><span class="muted note">Общий рейтинг с семьёй и друзьями</span></a>
+    </nav>
 
     <div class="panel">
       <h3>Напоминания</h3>
@@ -161,8 +229,8 @@
   <nav>
     <a href="#today" data-tab="today"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>Сегодня</a>
     <a href="#month" data-tab="month"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Месяц</a>
-    <a href="#groups" data-tab="groups"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 010 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></svg>Группы</a>
-    <a href="#proofs" data-tab="proofs"><svg viewBox="0 0 24 24"><path d="M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z"/><path d="M12 6v14"/></svg>Доводы</a>
+    <a href="#debts" data-tab="debts"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19M6.5 15h4"/></svg>Долги</a>
+    <a href="#will" data-tab="will"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Завещание</a>
     <a href="#more" data-tab="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Ещё</a>
   </nav>
 </div>

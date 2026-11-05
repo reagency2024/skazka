@@ -1,4 +1,4 @@
-# Сборка Android-приложения «5 весомых сунн» (APK для установки на телефон).
+# Сборка Android-приложения «7 весомых сунн» (APK для установки на телефон).
 # Готовый файл — в разделе Actions → запуск → Artifacts → sunnah5-android.
 # Адрес сервера синхронизации по умолчанию задаётся переменной репозитория SUNNAH_SERVER
 # (Settings → Secrets and variables → Actions → Variables).

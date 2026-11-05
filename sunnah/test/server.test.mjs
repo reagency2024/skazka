@@ -33,6 +33,14 @@ test("профиль, синхронизация двух устройств и 
   const s2 = (await call("/api/sync", { method: "POST", token: dashed, body: { days: {}, money: {} } })).json;
   assert.deepEqual(s2.days[k], { t: 10, quran: 1, duha: 1 });
 
+  // Долги и завещание тоже синхронизируются, но в группах не видны.
+  await call("/api/sync", { method: "POST", token: a.token, body: {
+    debts: { d1abcdef: { t: 11, kind: "owe", person: "Брат", amount: 300, currency: "сум", payments: [] } },
+    will: { t: 12, name: "Абдулла", bequests: [], heirs: [] } } });
+  const s3 = (await call("/api/sync", { method: "POST", token: a.token, body: {} })).json;
+  assert.equal(s3.debts.d1abcdef.person, "Брат");
+  assert.equal(s3.will.name, "Абдулла");
+
   // Старая правка не затирает новую.
   await call("/api/sync", { method: "POST", token: a.token, body: { days: { [k]: { t: 5 } } } });
   assert.equal(db.users[Object.keys(db.users)[0]].data.days[k].quran, 1);
@@ -46,7 +54,7 @@ test("профиль, синхронизация двух устройств и 
   assert.deepEqual(list[0].members.map(m => [m.name, m.me]), [["Абдулла", false], ["Марьям", true]]);
   assert.ok(list[0].members[0].pct > 0);
   assert.equal(list[0].members[0].done, 2);
-  assert.equal("days" in list[0].members[0], false); // отдельные отметки не раскрываются
+  assert.deepEqual(Object.keys(list[0].members[0]).sort(), ["done", "me", "name", "pct", "total"]); // ни отметок, ни долгов, ни завещания
 
   assert.equal((await call("/api/groups", { token: "WRONG" })).status, 401);
   assert.equal((await call("/api/groups/join", { method: "POST", token: b.token, body: { code: "NOPE00" } })).status, 404);

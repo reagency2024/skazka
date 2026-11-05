@@ -1,8 +1,8 @@
 {
-  "name": "sunnah5",
-  "version": "2.0.0",
+  "name": "sunnah7",
+  "version": "3.0.0",
   "private": true,
-  "description": "5 весомых сунн — трекер сунн с месячным рейтингом, группами и напоминаниями",
+  "description": "7 весомых сунн — трекер сунн с месячным рейтингом, группами и напоминаниями",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",

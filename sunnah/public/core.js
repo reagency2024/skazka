@@ -6,6 +6,9 @@ export const SUNNAHS = [
   { id: "quran",    title: "Коран после фаджра", sub: "чтение после утреннего намаза" },
   { id: "duha",     title: "Духа-намаз",         sub: "утренняя молитва, 2–8 ракатов" },
   { id: "sadaqa",   title: "Садака",             sub: "10% дохода" },
+  // since: дата, с которой сунна появилась в трекере; раньше этого дня она рейтинг не снижает.
+  { id: "dawah",    title: "Да‘ват",             sub: "хотя бы раз поговорить с кем-то об Исламе", since: "2026-11-05" },
+  { id: "third",    title: "⅓ желудка",          sub: "есть мало — лишь чтобы поддержать силы", since: "2026-11-05" },
 ];
 export const SUNNAH_IDS = SUNNAHS.map(s => s.id);
 
@@ -39,7 +42,7 @@ export function todayIn(timeZone) {
 }
 
 /* ---------- Данные ---------- */
-export const emptyData = () => ({ days: {}, money: {} });
+export const emptyData = () => ({ days: {}, money: {}, debts: {}, will: null });
 export const hasMarks = rec => !!rec && SUNNAH_IDS.some(id => rec[id]);
 
 // Первый день с отметкой: дни до начала пользования рейтинг не снижают.
@@ -51,7 +54,10 @@ export function startDay(data, today) {
   return s < today ? s : today;
 }
 
-export const applicable = d => SUNNAHS.filter(s => s.id !== "fast" || isFastDay(d));
+export const applicable = d => {
+  const k = keyOf(d);
+  return SUNNAHS.filter(s => (s.id !== "fast" || isFastDay(d)) && (!s.since || k >= s.since));
+};
 
 export function dayStats(data, d) {
   const rec = data.days[keyOf(d)] || {};
@@ -110,25 +116,100 @@ export function cleanDay(rec) {
 
 export function cleanMoney(rec) {
   if (!rec || typeof rec !== "object") return null;
-  const num = v => (v === null || v === "" || v === undefined || !isFinite(+v) || +v < 0) ? null : +v;
   return { t: Number(rec.t) || 0, income: num(rec.income), given: num(rec.given) };
 }
 
-// Слияние: по каждому дню и месяцу побеждает более поздняя правка (поле t).
+const str = (v, max) => typeof v === "string" ? v.slice(0, max) : "";
+const num = v => (v === null || v === "" || v === undefined || !isFinite(+v) || +v < 0) ? null : +v;
+const day = v => DAY_RE.test(v) ? v : "";
+
+export const DEBT_ID_RE = /^[0-9a-z]{6,32}$/i;
+
+export function cleanDebt(rec) {
+  if (!rec || typeof rec !== "object") return null;
+  const t = Number(rec.t) || 0;
+  if (rec.deleted) return { t, deleted: true };
+  const payments = (Array.isArray(rec.payments) ? rec.payments : []).slice(0, 200)
+    .map(p => ({ date: day(p && p.date), amount: num(p && p.amount) }))
+    .filter(p => p.date && p.amount);
+  return {
+    t, kind: rec.kind === "lent" ? "lent" : "owe",
+    person: str(rec.person, 80), amount: num(rec.amount) || 0, currency: str(rec.currency, 12),
+    taken: day(rec.taken), due: day(rec.due), note: str(rec.note, 500), witness: str(rec.witness, 120), payments,
+  };
+}
+
+export const WILL_TEXT_FIELDS = ["name", "birth", "city", "intro", "advice", "amanat", "obligations", "funeral", "executor", "executorContact", "witness1", "witness2", "other"];
+
+export function cleanWill(rec) {
+  if (!rec || typeof rec !== "object") return null;
+  const out = { t: Number(rec.t) || 0 };
+  for (const f of WILL_TEXT_FIELDS) out[f] = str(rec[f], 4000);
+  out.bequests = (Array.isArray(rec.bequests) ? rec.bequests : []).slice(0, 50).map(b => ({
+    to: str(b && b.to, 120), share: num(b && b.share), unit: b && b.unit === "sum" ? "sum" : "%", purpose: str(b && b.purpose, 300),
+  }));
+  out.heirs = (Array.isArray(rec.heirs) ? rec.heirs : []).slice(0, 50).map(h => ({
+    name: str(h && h.name, 120), relation: str(h && h.relation, 60),
+  }));
+  return out;
+}
+
+const newer = (x, y) => !x ? y : !y ? x : (y.t >= x.t ? y : x);
+
+// Слияние: по каждому дню, месяцу и долгу побеждает более поздняя правка (поле t);
+// завещание сливается целиком.
 export function mergeData(a, b) {
   const out = emptyData();
-  for (const part of ["days", "money"]) {
-    const re = part === "days" ? DAY_RE : MONTH_RE;
-    const clean = part === "days" ? cleanDay : cleanMoney;
+  const parts = { days: [DAY_RE, cleanDay], money: [MONTH_RE, cleanMoney], debts: [DEBT_ID_RE, cleanDebt] };
+  for (const [part, [re, clean]] of Object.entries(parts)) {
     const keys = new Set([...Object.keys(a[part] || {}), ...Object.keys(b[part] || {})]);
     for (const k of keys) {
       if (!re.test(k)) continue;
-      const x = clean((a[part] || {})[k]), y = clean((b[part] || {})[k]);
-      const win = !x ? y : !y ? x : (y.t >= x.t ? y : x);
+      const win = newer(clean((a[part] || {})[k]), clean((b[part] || {})[k]));
       if (win) out[part][k] = win;
     }
   }
+  out.will = newer(cleanWill(a.will), cleanWill(b.will));
   return out;
+}
+
+/* ---------- Долги ---------- */
+const daysBetween = (from, to) => Math.round((parseKey(to) - parseKey(from)) / 864e5);
+
+// Состояние долга: сколько возвращено и вовремя ли.
+export function debtInfo(debt, today) {
+  const paid = debt.payments.reduce((s, p) => s + p.amount, 0);
+  const left = Math.max(0, Math.round((debt.amount - paid) * 100) / 100);
+  const closed = debt.amount > 0 && left === 0;
+  const closedOn = closed ? debt.payments.map(p => p.date).sort().pop() : "";
+  const t = keyOf(today);
+  let status = "open", late = 0, soon = null;
+  if (closed) {
+    late = debt.due ? Math.max(0, daysBetween(debt.due, closedOn)) : 0;
+    status = late ? "late" : "ontime";
+  } else if (debt.due) {
+    const diff = daysBetween(t, debt.due);
+    if (diff < 0) { status = "overdue"; late = -diff; } else if (diff <= 7) { status = "soon"; soon = diff; }
+  }
+  return { paid, left, closed, closedOn, status, late, soon };
+}
+
+export function debtSummary(debts, today) {
+  const owe = {}, lent = {};
+  let overdue = 0, closedWithDue = 0, onTime = 0;
+  for (const d of Object.values(debts)) {
+    if (!d || d.deleted) continue;
+    const i = debtInfo(d, today);
+    if (!i.closed) {
+      const bucket = d.kind === "lent" ? lent : owe;
+      bucket[d.currency] = (bucket[d.currency] || 0) + i.left;
+      if (i.status === "overdue" && d.kind === "owe") overdue++;
+    } else if (d.kind === "owe" && d.due) {
+      closedWithDue++;
+      if (i.status === "ontime") onTime++;
+    }
+  }
+  return { owe, lent, overdue, closedWithDue, onTime, timeliness: closedWithDue ? (onTime / closedWithDue) * 100 : null };
 }
 
 /* ---------- Напоминания ---------- */

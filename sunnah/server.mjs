@@ -1,4 +1,4 @@
-// Сервер «5 весомых сунн»: раздаёт приложение, синхронизирует отметки между устройствами,
+// Сервер «7 весомых сунн»: раздаёт приложение, синхронизирует отметки между устройствами,
 // ведёт группы с общим рейтингом и присылает push-напоминания.
 // Данные хранятся в одном JSON-файле (DATA_DIR/sunnah-db.json).
 
@@ -19,7 +19,7 @@ const DB_FILE = path.join(DATA_DIR, "sunnah-db.json");
 const PORT = Number(process.env.PORT) || 8080;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "https://github.com/reagency2024/skazka";
 
-const LIMITS = { name: 40, groupName: 40, groupsPerUser: 20, membersPerGroup: 100, subsPerUser: 10, body: 1_000_000, days: 20_000 };
+const LIMITS = { name: 40, groupName: 40, groupsPerUser: 20, membersPerGroup: 100, subsPerUser: 10, body: 1_000_000, days: 20_000, debts: 5_000 };
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 символа без похожих (0/O, 1/I)
 
 /* ---------- База ---------- */
@@ -141,8 +141,8 @@ const routes = {
   "POST /api/sync": async req => {
     const user = auth(req);
     const body = await readBody(req);
-    const merged = mergeData(user.data, { days: body.days || {}, money: body.money || {} });
-    if (Object.keys(merged.days).length > LIMITS.days) throw new HttpError(413, "Слишком много записей");
+    const merged = mergeData(user.data, { days: body.days || {}, money: body.money || {}, debts: body.debts || {}, will: body.will || null });
+    if (Object.keys(merged.days).length > LIMITS.days || Object.keys(merged.debts).length > LIMITS.debts) throw new HttpError(413, "Слишком много записей");
     user.data = merged;
     const tz = validTz(body.tz); if (tz) user.tz = tz;
     persist();
@@ -318,7 +318,7 @@ async function pushTick() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   setInterval(() => pushTick().catch(e => console.error(e)), 20_000);
-  server.listen(PORT, () => console.log(`5 весомых сунн: http://localhost:${PORT}  (данные: ${DB_FILE})`));
+  server.listen(PORT, () => console.log(`7 весомых сунн: http://localhost:${PORT}  (данные: ${DB_FILE})`));
   const stop = () => { clearTimeout(writeTimer); flush(); process.exit(0); };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
