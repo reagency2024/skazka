@@ -314,3 +314,8 @@ details.panel > summary { color: var(--ink); }
   .panel { border: 0; padding: 0; }
   .will-doc { background: #fff; color: #000; border: 0; padding: 0; font-size: 12pt; }
 }
+
+.moved { border: 2px solid var(--brass); background: var(--brass-soft); }
+.moved ol { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.moved a:not(.btn) { color: var(--ink); font-weight: 600; }
+.moved a.btn { text-decoration: none; color: var(--ink); }
